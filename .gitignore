@@ -1,6 +1,9 @@
 # macOS resource fork files
 ._*
 
+#secret
+*.json
+
 
 # Godot 4+ specific ignores
 .godot/
