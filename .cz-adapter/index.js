@@ -1,5 +1,7 @@
 'use strict';
 
+const { execSync } = require('child_process');
+
 const authors = {
   "Aria":        "aria@AI:RA.net",
   "RA":          "AIRA@aria.net",            // AI:RA
@@ -32,17 +34,19 @@ module.exports = {
       const key = answers.authorKey;
       const name = displayNames[key];
       const email = authors[key];
-      const message = answers.message;
 
-      const spawn = require('child_process').spawn;
-      const args = ['commit', '--author', `"${name} <${email}>"`, '-m', message];
-      const git = spawn('git', args, { stdio: 'inherit', shell: true });
+      const rawMsg = answers.message.trim();
+      const safeMsg = rawMsg.replace(/"/g, '\\"'); // escape quotes
 
-      git.on('exit', code => {
-        if (code !== 0) {
-          console.error(`\n❌ Git commit failed with code ${code}`);
-        }
-      });
+      const commitMsg = `[${name}] ${safeMsg}`;
+      const authorTag = `"${name} <${email}>"`;
+
+      try {
+        const command = `git commit --author=${authorTag} -m "${commitMsg}"`;
+        execSync(command, { stdio: 'inherit' });
+      } catch (err) {
+        console.error(`\n❌ Git commit failed:\n${err.message}`);
+      }
     });
   }
 };
