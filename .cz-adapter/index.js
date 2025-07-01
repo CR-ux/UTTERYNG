@@ -1,23 +1,35 @@
 'use strict';
 
-const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const { execSync, spawnSync } = require('child_process');
 
 const authors = {
-  "Aria":        "aria@AI:RA.net",
-  "RA":          "AIRA@aria.net",            // AI:RA
-  "Clara":       "clara@notBorges.net",
-  "me":          "noet.borges@rosepetal.com" // notBorges
+  "Aria":  "aria@AI:RA.net",
+  "RA":    "AIRA@aria.net",            // AI:RA
+  "Clara": "clara@notBorges.net",
+  "me":    "noet.borges@rosepetal.com" // notBorges
 };
 
 const displayNames = {
-  "Aria":        "Aria",
-  "RA":          "AI:RA",
-  "Clara":       "Clara",
-  "me":          "notBorges"
+  "Aria":  "Aria",
+  "RA":    "AI:RA",
+  "Clara": "Clara",
+  "me":    "notBorges"
 };
 
 module.exports = {
   prompter(cz, commit) {
+    const scrollDir = './Scroll';
+
+    const scrollFiles = fs.existsSync(scrollDir)
+      ? fs.readdirSync(scrollDir).filter(f => f.match(/\.(txt|md)$/))
+      : [];
+
+    const choices = scrollFiles.length
+      ? [...scrollFiles.map(f => path.join(scrollDir, f)), '[Write new message in VSCode]']
+      : ['[Write new message in VSCode]'];
+
     cz.prompt([
       {
         type: 'list',
@@ -26,23 +38,44 @@ module.exports = {
         choices: Object.keys(authors)
       },
       {
-        type: 'input',
-        name: 'message',
-        message: '🖋 What happened?'
+        type: 'list',
+        name: 'messageSource',
+        message: '📜 Choose a scroll or compose anew:',
+        choices: choices
       }
-    ]).then(answers => {
+    ]).then(async answers => {
       const key = answers.authorKey;
       const name = displayNames[key];
       const email = authors[key];
+      let message = '';
 
-      const rawMsg = answers.message.trim();
-      const safeMsg = rawMsg.replace(/"/g, '\\"'); // escape quotes
+      if (answers.messageSource === '[Write new message in VSCode]') {
+        const tempPath = path.join(scrollDir, '__draft.md');
+        fs.writeFileSync(tempPath, '# Write your commit message below.\n', 'utf8');
 
+        spawnSync('code', ['--wait', tempPath], { stdio: 'inherit' });
+
+        message = fs.readFileSync(tempPath, 'utf8')
+          .split('\n')
+          .filter(line => !line.startsWith('#'))
+          .join('\n')
+          .trim();
+
+        fs.unlinkSync(tempPath); // clean up draft
+      } else {
+        message = fs.readFileSync(answers.messageSource, 'utf8').trim();
+      }
+
+      if (!message) {
+        console.error('❌ Empty message. Commit aborted.');
+        return;
+      }
+
+      const safeMsg = message.replace(/"/g, '\\"');
       const commitMsg = `[${name}] ${safeMsg}`;
-      const authorTag = `"${name} <${email}>"`;
+      const command = `git commit --author="${name} <${email}>" -m "${commitMsg}"`;
 
       try {
-        const command = `git commit --author=${authorTag} -m "${commitMsg}"`;
         execSync(command, { stdio: 'inherit' });
       } catch (err) {
         console.error(`\n❌ Git commit failed:\n${err.message}`);
