@@ -25,3 +25,4 @@ Thumbs.db
 *.png
 Assets/
 *.svg
+node_modules/
